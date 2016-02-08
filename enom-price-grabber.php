@@ -188,6 +188,6 @@ if ($enomDataCount > 0) {
 		}
 	}
 
-	echo "\n-- {$count} domain have been inserted into `tblpricing`";
+	echo "\n-- {$count} domain(s) have been inserted into `tblpricing`";
 	echo "\n-- Finished :)";
 }
