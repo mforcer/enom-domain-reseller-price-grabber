@@ -12,7 +12,8 @@
  * 2. Define your WHMCS database connection settings
  * 3. Define your ENOM user/API settings
  * 4. Add some domain TLDs in **WHMCS** -> **Setup** -> **Products/Services** -> **Domain Pricing**
- * 5. Access http://your-whmcs-site.com/enom-price-grabber.php in your browser to run the script
+ * 5. Make sure 'Auto Registration' is set to ENOM
+ * 6. Access http://your-whmcs-site.com/enom-price-grabber.php in your browser to run the script
  * Bonus: Setup this script as a daily/weekly cron and forget about it :)
  *
  * ** IMPORTANT **
