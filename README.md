@@ -7,7 +7,7 @@ This script will grab domain prices from your ENOM reseller account and insert t
 * Define your WHMCS database connection settings
 * Define your ENOM user/API settings
 * Add some domain TLDs in **WHMCS** -> **Setup** -> **Products/Services** -> **Domain Pricing**
-* access http://your-whmcs-site.com/domain-pricing.php in your browser to run the script
+* access http://your-whmcs-site.com/enom-price-grabber.php in your browser to run the script
 
 **Bonus:** Setup this script as a daily/weekly cron and forget about it :)
 
