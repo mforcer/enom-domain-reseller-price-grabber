@@ -1,29 +1,28 @@
 <?php
 /**
  * ENOM Domain Reseller Price Grabber
+ * Version: 0.2 (Beta)
  *
  * This script will grab domain prices from your ENOM reseller account and
- * insert them into your WHMCS database eliminating the need to continually
- * update prices on both platforms. Simply change pricing on ENOM and this
- * script will pull them into your WHMCS installation.
+ * insert them into your WHMCS database eliminating the need to continuously
+ * update prices on ENOM and WHMCS.
  *
  * How to use:
- * 1. Activate ENOM Reseller in WHMCS
- * 2. Define your WHMCS database connection settings
- * 3. Define your ENOM user/API settings
- * 4. Add some domain TLDs in **WHMCS** -> **Setup** -> **Products/Services** -> **Domain Pricing**
- * 5. Make sure 'Auto Registration' is set to ENOM
- * 6. Access http://your-whmcs-site.com/enom-price-grabber.php in your browser to run the script
- * Bonus: Setup this script as a daily/weekly cron and forget about it :)
+ * 	1. Define your WHMCS database connection settings
+ *  2. Define your ENOM user/API settings (make sure ENOM integration is activated)
+ *  3. Add some domains in WHMCS -> Setup -> Products/Services -> Domain Pricing
+ *  4. This script works best setup as a daily/weekly cron but can be run manually
+ *
+ * ** Currency Conversion **
+ * If you would like to save prices in a different currency to USD, set
+ * USE_EXCHANGE_RATE to 1 and set EXCHANGE_TO to the currency you want to
+ * convert to e.g. GBP, EUR.
  *
  * ** IMPORTANT **
- * This script **DOES NOT** grab prices for ALL domains in ENOM.
- * It only grabs prices for domains you have added into 'Domain Pricing'.
- * If you want all domains you will need to add them ALL manually. This is so
- * it only grabs prices for domains that you want to sell.
- *
- * If you do want work with ALL domains but don't want to add them to WHMCS
- * you should be able to easily modify the script.
+ * This script DOES NOT download the pricing for EVERY domain, it only grabs
+ * pricing for domains you have added into 'Domain Pricing', if you want all domains
+ * you will need to add ALL manually. This is so it only grabs prices for domains
+ * that you want to use.
  *
  * ** NEED HELP?
  * Email: support@xtmhost.com
@@ -31,7 +30,7 @@
  * Twitter: @xtmhost
  */
 
-// Database config settings
+// Database connection settings
 define('DB_NAME', 'database_name');
 define('DB_USER', 'database_username');
 define('DB_PASSWORD', 'database_password');
@@ -40,6 +39,11 @@ define('DB_HOST', 'localhost');
 // Enom API settings
 define('ENOM_USER', 'enom_username');
 define('ENOM_PASS', 'enom_password');
+
+// Exchange Rate settings
+define('USE_EXCHANGE_RATE', 0);
+define('EXCHANGE_FROM', 'USD');
+define('EXCHANGE_TO', 'GBP');
 
 // Ensure the output is text/plain
 header('Content-Type: text/plain');
@@ -77,13 +81,23 @@ $whmcsTLDs = $stmtSelect->fetchAll();
 
 // If some domain TLDs exist in WHMCS we can build an array otherwise exit
 $whmcsTLDsCount = count($whmcsTLDs);
-
 if ($whmcsTLDsCount == 0)
 	die("\n-- Couldn't find any TLDs in WHMCS. Add some by going to Setup -> Products/Services -> Domain Pricing");
 
 for ($i = 0; $i < $whmcsTLDsCount; $i++) {
 	$ext = ltrim($whmcsTLDs[$i]['extension'], '.');
 	$tldsList[$ext] = ['extension' => $ext, 'id' => $whmcsTLDs[$i]['id']];
+}
+
+if (USE_EXCHANGE_RATE == 1) {
+    echo "\n-- Getting the latest exchange rate";
+
+    $jsonFeed = file_get_contents('http://api.fixer.io/latest?base=' . EXCHANGE_FROM . '&symbols=' . EXCHANGE_TO);
+    $exchangeData = json_decode($jsonFeed);
+    $currency = constant('EXCHANGE_TO');
+    $exchangeRate = $exchangeData->rates->{$currency};
+
+    echo "\n-- Current exchange rate from " . EXCHANGE_FROM . ' to ' . EXCHANGE_TO . ' is ' . $exchangeRate;
 }
 
 echo "\n-- Grabbing list of TLDs from ENOM";
@@ -96,12 +110,13 @@ $enomData = $xmlFeed->pricestructure->tld;
 
 $enomDataCount = count($xmlFeed->pricestructure->tld);
 if ($enomDataCount > 0) {
-	// We now have our data ready to insert, it's safe to clear the existing data.
+	// We now have our data ready to insert, it's safe to clear the existing data
 	$stmtDelete = $db->prepare("DELETE FROM `tblpricing` WHERE `type` IN ('domainregister', 'domainrenew', 'domaintransfer')");
 	$stmtDelete->execute();
 
 	echo "\n-- Deleted existing data from pricing table";
 
+    // Prepare our insert statements
 	$stmtInsertRegisterPrice = $db->prepare("INSERT INTO `tblpricing` (`type`, `currency`, `relid`, `msetupfee`, `qsetupfee`, `ssetupfee`, `asetupfee`, `bsetupfee`, `tsetupfee`, `monthly`, `quarterly`, `semiannually`, `annually`, `biennially`, `triennially`) VALUES (:type, :currency, :relid, :msetupfee, :qsetupfee, :ssetupfee, :asetupfee, :bsetupfee, :tsetupfee, :monthly, :quarterly, :semiannually, :annually, :biennially, :triennially)");
 
 	$stmtInsertRenewPrice = $db->prepare("INSERT INTO `tblpricing` (`type` ,`currency` ,`relid` ,`msetupfee` ,`qsetupfee` ,`ssetupfee` ,`asetupfee` ,`bsetupfee` ,`tsetupfee` ,`monthly` ,`quarterly` ,`semiannually` ,`annually` ,`biennially` ,`triennially`) VALUES (:type, :currency, :relid, :msetupfee, :qsetupfee, :ssetupfee, :asetupfee, :bsetupfee, :tsetupfee, :monthly, :quarterly, :semiannually, :annually, :biennially, :triennially)");
@@ -111,14 +126,20 @@ if ($enomDataCount > 0) {
 	echo "\n-- Queries have been prepared, lets begin the insert...";
 
 	$count = 0;
-
+    // Loop through each domain in WHMCS and grab the pricing from ENOM
 	for ($i = 0; $i < $enomDataCount; $i++) {
 		$tldFromEnom = (string)$enomData[$i]->tld;
 
 		if (in_array_r($tldFromEnom, $tldsList)) {
-			$registerPrice = $enomData[$i]->registerprice;
-			$renewPrice    = $enomData[$i]->renewprice;
-			$transferPrice = $enomData[$i]->transferprice;
+            if (USE_EXCHANGE_RATE == 1) {
+                $registerPrice  = bcmul($enomData[$i]->registerprice, $exchangeRate, 2);
+                $renewPrice     = bcmul($enomData[$i]->renewprice, $exchangeRate, 2);
+                $transferPrice  = bcmul($enomData[$i]->transferprice, $exchangeRate, 2);
+            } else {
+                $registerPrice  = $enomData[$i]->registerprice;
+                $renewPrice     = $enomData[$i]->renewprice;
+                $transferPrice  = $enomData[$i]->transferprice;
+            }
 
 			echo "\n-- Found domain '{$tldFromEnom}' and grabbed prices";
 
