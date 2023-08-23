@@ -1,8 +1,8 @@
 # Enom Domain Reseller Price Grabber
 This script will grab domain prices from your ENOM reseller account and insert them into your WHMCS database eliminating the need to continuously update prices on both platforms. Simply change pricing on ENOM and this script will pull them into your WHMCS installation.
 
-## Disclaimer
-This script is still in beta. Do not use this on a production database until you fully understand what it does and how it works. All domain prices are deleted before they are re-inserted, there is a possibility for data loss if used incorrectly.
+## Discontinued
+Note: This functionality is now built directly into WHMCS.
 
 ## How to use
 * Activate ENOM Reseller in WHMCS
